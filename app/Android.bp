@@ -78,6 +78,10 @@ android_app {
         proguard_flags_files: ["proguard-rules.pro"],
         shrink_resources: true,
     },
+
+    aaptflags: [
+        "--rename-manifest-package", "org.strixos.glimpse",
+    ],
 }
 
 prebuilt_etc {
@@ -85,7 +89,7 @@ prebuilt_etc {
     product_specific: true,
     sub_dir: "sysconfig",
     src: "initial-package-stopped-states-org.lineageos.glimpse.xml",
-    filename_from_src: true,
+    filename: "initial-package-stopped-states-org.strixos.glimpse.xml",
 }
 
 prebuilt_etc {
@@ -93,5 +97,5 @@ prebuilt_etc {
     product_specific: true,
     sub_dir: "sysconfig",
     src: "preinstalled-packages-org.lineageos.glimpse.xml",
-    filename_from_src: true,
+    filename: "preinstalled-packages-org.strixos.glimpse.xml",
 }
