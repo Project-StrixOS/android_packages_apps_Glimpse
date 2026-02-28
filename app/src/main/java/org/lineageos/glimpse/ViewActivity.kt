@@ -5,7 +5,6 @@
 
 package org.lineageos.glimpse
 
-import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Intent
 import android.content.res.Configuration
@@ -49,6 +48,7 @@ import org.lineageos.glimpse.models.Album
 import org.lineageos.glimpse.models.AlbumType
 import org.lineageos.glimpse.models.Media
 import org.lineageos.glimpse.models.MediaType
+import org.lineageos.glimpse.models.MotionPhoto
 import org.lineageos.glimpse.models.RequestStatus
 import org.lineageos.glimpse.ui.dialogs.MediaInfoBottomSheetDialog
 import org.lineageos.glimpse.ui.recyclerview.MediaViewerAdapter
@@ -75,6 +75,7 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
     private val deleteButton by lazy { findViewById<MaterialButton>(R.id.deleteButton) }
     private val favoriteButton by lazy { findViewById<MaterialButton>(R.id.favoriteButton) }
     private val infoButton by lazy { toolbar.menu.findItem(R.id.info) }
+    private val motionPhotoToggleButton by lazy { findViewById<MaterialButton>(R.id.motionPhotoToggleButton) }
     private val shareButton by lazy { findViewById<MaterialButton>(R.id.shareButton) }
     private val toolbar by lazy { findViewById<MaterialToolbar>(R.id.toolbar) }
     private val useAsButton by lazy { toolbar.menu.findItem(R.id.useAs) }
@@ -95,7 +96,7 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
     // Contracts
     private val deleteUriContract =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            val succeeded = it.resultCode != Activity.RESULT_CANCELED
+            val succeeded = it.resultCode != RESULT_CANCELED
 
             MediaDialogsUtils.showDeleteForeverResultSnackbar(
                 this,
@@ -107,7 +108,7 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
 
     private val trashUriContract =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            val succeeded = it.resultCode != Activity.RESULT_CANCELED
+            val succeeded = it.resultCode != RESULT_CANCELED
 
             MediaDialogsUtils.showMoveToTrashResultSnackbar(
                 this,
@@ -124,7 +125,7 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
 
     private val restoreUriFromTrashContract =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            val succeeded = it.resultCode != Activity.RESULT_CANCELED
+            val succeeded = it.resultCode != RESULT_CANCELED
 
             MediaDialogsUtils.showRestoreFromTrashResultSnackbar(
                 this,
@@ -271,6 +272,10 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
             }
 
             false
+        }
+
+        motionPhotoToggleButton.setOnClickListener {
+            viewModel.toggleMotionPhotoEnabled()
         }
 
         viewPager.offscreenPageLimit = 2
@@ -439,13 +444,35 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
                         0
                     )
 
+                    // Reset motion photo toggle button
+                    viewModel.toggleMotionPhotoEnabled(false)
+                }
+            }
+
+            launch {
+                viewModel.displayedMediaToMotionPhoto.collectLatest { (displayedMedia, motionPhoto) ->
                     // Update ExoPlayer
                     displayedMedia?.let {
-                        updateExoPlayer(it)
+                        updateExoPlayer(it, motionPhoto)
                     }
+
+                    val isPlayingMotionPhoto = motionPhoto != null
+                    motionPhotoToggleButton.isSelected = isPlayingMotionPhoto
+                    motionPhotoToggleButton.setText(
+                        when (isPlayingMotionPhoto) {
+                            true -> R.string.motion_photo_show_photo
+                            false -> R.string.motion_photo_show_video
+                        }
+                    )
 
                     // Trigger a sheets height update
                     updateSheetsHeight()
+                }
+            }
+
+            launch {
+                viewModel.motionPhoto.collectLatest { motionPhoto ->
+                    motionPhotoToggleButton.isVisible = motionPhoto != null
                 }
             }
 
@@ -478,14 +505,14 @@ class ViewActivity : AppCompatActivity(R.layout.activity_view) {
      * Update exoPlayer's status.
      * @param media The currently displayed [Media]
      */
-    private fun updateExoPlayer(media: Media) {
+    private fun updateExoPlayer(media: Media, motionPhoto: MotionPhoto?) {
         if (media.mediaType == MediaType.VIDEO) {
             if (media.uri != lastVideoUriPlayed) {
                 lastVideoUriPlayed = media.uri
                 viewModel.setCurrentVideoUri(media.uri)
             }
         } else {
-            viewModel.stop()
+            motionPhoto?.also(viewModel::playMotionPhoto) ?: viewModel.stop()
 
             // Make sure we will forcefully reload and restart the video
             lastVideoUriPlayed = null
